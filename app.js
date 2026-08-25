@@ -1,0 +1,513 @@
+// Minecraft Pig Cannon Calculator - Boat Acceleration & Tick Ballistics Solver
+
+// DOM Elements
+const originXInput = document.getElementById("origin-x");
+const originYInput = document.getElementById("origin-y");
+const originZInput = document.getElementById("origin-z");
+
+const targetXInput = document.getElementById("target-x");
+const targetYInput = document.getElementById("target-y");
+const targetZInput = document.getElementById("target-z");
+
+const motionPerBoatInput = document.getElementById("motion-per-boat");
+const accelTicksInput = document.getElementById("accel-ticks");
+const powderSnowVersionInput = document.getElementById("powder-snow-version");
+
+const pigDragInput = document.getElementById("pig-drag");
+const pigGravityInput = document.getElementById("pig-gravity");
+const maxBoatStackInput = document.getElementById("max-boat-stack");
+const maxTicksInput = document.getElementById("max-ticks");
+
+const btnCalculate = document.getElementById("btn-calculate");
+
+const solverTbody = document.getElementById("solver-tbody");
+const resultsCount = document.getElementById("results-count");
+
+const tpCommandText = document.getElementById("tp-command");
+const btnCopyCommand = document.getElementById("btn-copy-command");
+const btnCopyPigCommand = document.getElementById("btn-copy-pig-command");
+
+const trajectoryCanvas = document.getElementById("trajectory-canvas");
+const tickTbody = document.getElementById("tick-tbody");
+
+const btnViewXZ = document.getElementById("btn-view-xz");
+const btnViewXY = document.getElementById("btn-view-xy");
+
+// Application State
+let solverResults = [];
+let selectedResult = null;
+let currentCanvasMode = "xz"; // "xz" or "xy"
+
+// Event Listeners
+btnCalculate.addEventListener("click", runSolver);
+
+btnCopyCommand.addEventListener("click", () => copyTpCommand("player"));
+btnCopyPigCommand.addEventListener("click", () => copyTpCommand("pig"));
+
+btnViewXZ.addEventListener("click", () => {
+  currentCanvasMode = "xz";
+  btnViewXZ.classList.add("active");
+  btnViewXY.classList.remove("active");
+  if (selectedResult) renderCanvas(selectedResult.trajectory);
+});
+
+btnViewXY.addEventListener("click", () => {
+  currentCanvasMode = "xy";
+  btnViewXY.classList.add("active");
+  btnViewXZ.classList.remove("active");
+  if (selectedResult) renderCanvas(selectedResult.trajectory);
+});
+
+// Clipboard Helper
+function copyTpCommand(targetType) {
+  if (!selectedResult) return;
+  const land = selectedResult.landingPos;
+  const cmd = targetType === "pig" 
+    ? `/tp @e[type=pig,limit=1,sort=nearest] ${land.x.toFixed(2)} ${land.y.toFixed(2)} ${land.z.toFixed(2)}`
+    : `/tp @p ${land.x.toFixed(2)} ${land.y.toFixed(2)} ${land.z.toFixed(2)}`;
+  
+  navigator.clipboard.writeText(cmd).then(() => {
+    const targetBtn = targetType === "pig" ? btnCopyPigCommand : btnCopyCommand;
+    const originalText = targetBtn.textContent;
+    targetBtn.textContent = "Copied!";
+    targetBtn.style.background = "var(--color-success)";
+    targetBtn.style.color = "#fff";
+    setTimeout(() => {
+      targetBtn.textContent = originalText;
+      targetBtn.style.background = "";
+      targetBtn.style.color = "";
+    }, 1500);
+  });
+}
+
+// Math distance helper
+function dist2D(x1, z1, x2, z2) {
+  const dx = x2 - x1;
+  const dz = z2 - z1;
+  return Math.sqrt(dx*dx + dz*dz);
+}
+
+function dist3D(p1, p2) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const dz = p2.z - p1.z;
+  return Math.sqrt(dx*dx + dy*dy + dz*dz);
+}
+
+/**
+ * Calculates unit displacement for 1 boat over totalTicks
+ */
+function getUnitDisplacement(accelTicks, totalTicks, effectiveMotion, drag) {
+  let pos = 0;
+  let vel = 0;
+
+  for (let t = 1; t <= totalTicks; t++) {
+    if (t <= accelTicks) {
+      vel += effectiveMotion;
+    }
+    pos += vel;
+    vel *= drag;
+  }
+
+  return pos;
+}
+
+/**
+ * Simulates exact pig motion tick-by-tick for given bx and bz boat counts
+ */
+function simulatePigTrajectory(origin, bx, bz, dirX, dirZ, accelTicks, totalTicks, effectiveMotion, drag, gravity) {
+  let x = origin.x;
+  let y = origin.y;
+  let z = origin.z;
+
+  let vx = 0;
+  let vy = 0;
+  let vz = 0;
+
+  const trajectory = [];
+  trajectory.push({
+    tick: 0,
+    time: "0.00",
+    phase: "Launcher",
+    x, y, z,
+    vx, vy, vz,
+    speed: 0
+  });
+
+  const pushX = bx * effectiveMotion * dirX;
+  const pushZ = bz * effectiveMotion * dirZ;
+
+  for (let t = 1; t <= totalTicks; t++) {
+    const isAccel = t <= accelTicks;
+
+    if (isAccel) {
+      vx += pushX;
+      vz += pushZ;
+    }
+
+    // Position update
+    x += vx;
+    y += vy;
+    z += vz;
+
+    // Velocity decay for next tick
+    vx *= drag;
+    vz *= drag;
+    vy = (vy - gravity) * drag;
+
+    const speedVal = Math.sqrt(vx*vx + vy*vy + vz*vz) * 20; // blocks/sec
+
+    trajectory.push({
+      tick: t,
+      time: (t * 0.05).toFixed(2),
+      phase: isAccel ? "Accelerating" : "Free Flight",
+      x, y, z,
+      vx, vy, vz,
+      speed: speedVal
+    });
+  }
+
+  return trajectory;
+}
+
+/**
+ * Main solver engine
+ */
+function runSolver() {
+  const origin = {
+    x: parseFloat(originXInput.value) || 0,
+    y: parseFloat(originYInput.value) || 64,
+    z: parseFloat(originZInput.value) || 0
+  };
+
+  const target = {
+    x: parseFloat(targetXInput.value) || 0,
+    y: parseFloat(targetYInput.value) || 64,
+    z: parseFloat(targetZInput.value) || 0
+  };
+
+  const rawMotion = parseFloat(motionPerBoatInput.value) || 0.0413265304548704;
+  const accelTicks = parseInt(accelTicksInput.value, 10) || 1;
+  const powderSnowMult = parseFloat(powderSnowVersionInput.value) || 0.95;
+
+  const drag = parseFloat(pigDragInput.value) || 0.91;
+  const gravity = parseFloat(pigGravityInput.value) || 0.08;
+  const maxBoatStack = parseInt(maxBoatStackInput.value, 10) || 50;
+  const maxTicks = parseInt(maxTicksInput.value, 10) || 200;
+
+  const effectiveMotion = rawMotion * powderSnowMult;
+
+  const dx = target.x - origin.x;
+  const dz = target.z - origin.z;
+  const dxAbs = Math.abs(dx);
+  const dzAbs = Math.abs(dz);
+
+  const dirX = dx >= 0 ? 1 : -1;
+  const dirZ = dz >= 0 ? 1 : -1;
+
+  const targetDist2D = dist2D(origin.x, origin.z, target.x, target.z);
+
+  if (targetDist2D === 0) {
+    alert("Origin and Target cannot be at the exact same X, Z location.");
+    return;
+  }
+
+  solverResults = [];
+
+  for (let t = 1; t <= maxTicks; t++) {
+    const unitDisp = getUnitDisplacement(accelTicks, t, effectiveMotion, drag);
+    if (unitDisp <= 0) continue;
+
+    const bxIdeal = dxAbs / unitDisp;
+    const bzIdeal = dzAbs / unitDisp;
+
+    const bxCandidates = new Set([
+      Math.max(0, Math.min(maxBoatStack, Math.floor(bxIdeal))),
+      Math.max(0, Math.min(maxBoatStack, Math.ceil(bxIdeal)))
+    ]);
+
+    const bzCandidates = new Set([
+      Math.max(0, Math.min(maxBoatStack, Math.floor(bzIdeal))),
+      Math.max(0, Math.min(maxBoatStack, Math.ceil(bzIdeal)))
+    ]);
+
+    for (const bx of bxCandidates) {
+      for (const bz of bzCandidates) {
+        if (bx === 0 && bz === 0) continue;
+
+        const trajectory = simulatePigTrajectory(
+          origin, bx, bz, dirX, dirZ, accelTicks, t, effectiveMotion, drag, gravity
+        );
+
+        const lastPoint = trajectory[trajectory.length - 1];
+        const landingPos = { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z };
+
+        const error2D = dist2D(landingPos.x, landingPos.z, target.x, target.z);
+
+        const landDistFromOrigin = dist2D(origin.x, origin.z, landingPos.x, landingPos.z);
+        let statusText = "Exact";
+        let statusClass = "exact";
+
+        if (Math.abs(landDistFromOrigin - targetDist2D) > 0.1) {
+          if (landDistFromOrigin > targetDist2D) {
+            statusText = "Overshoot";
+            statusClass = "overshoot";
+          } else {
+            statusText = "Undershoot";
+            statusClass = "undershoot";
+          }
+        }
+
+        solverResults.push({
+          ticks: t,
+          bx: bx,
+          bz: bz,
+          origin,
+          target,
+          landingPos,
+          error: error2D,
+          status: statusText,
+          statusClass: statusClass,
+          trajectory
+        });
+      }
+    }
+  }
+
+  // Sort by error ascending
+  solverResults.sort((a, b) => a.error - b.error);
+
+  // Deduplicate
+  const seen = new Set();
+  solverResults = solverResults.filter(res => {
+    const key = `${res.ticks}_${res.bx}_${res.bz}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  solverResults = solverResults.slice(0, 15);
+
+  renderSolverTable();
+
+  if (solverResults.length > 0) {
+    selectResult(0);
+  } else {
+    solverTbody.innerHTML = `<tr><td colspan="6" class="table-placeholder">No valid configurations found. Try increasing Max Ticks or Boat Stack limits.</td></tr>`;
+    resultsCount.textContent = "0 solutions";
+  }
+}
+
+/**
+ * Render solutions table
+ */
+function renderSolverTable() {
+  solverTbody.innerHTML = "";
+  resultsCount.textContent = `${solverResults.length} solutions`;
+
+  if (solverResults.length === 0) return;
+
+  solverResults.forEach((res, idx) => {
+    const tr = document.createElement("tr");
+    if (selectedResult && selectedResult.ticks === res.ticks && selectedResult.bx === res.bx && selectedResult.bz === res.bz) {
+      tr.classList.add("selected");
+    }
+
+    const posStr = `(${res.landingPos.x.toFixed(1)}, ${res.landingPos.y.toFixed(1)}, ${res.landingPos.z.toFixed(1)})`;
+
+    tr.innerHTML = `
+      <td><strong>${res.ticks}</strong></td>
+      <td>${res.bx}</td>
+      <td>${res.bz}</td>
+      <td>${posStr}</td>
+      <td class="${res.error < 1 ? 'text-success' : 'text-warning'}">${res.error.toFixed(2)}m</td>
+      <td><span class="status-pill ${res.statusClass}">${res.status}</span></td>
+    `;
+
+    tr.addEventListener("click", () => selectResult(idx));
+    solverTbody.appendChild(tr);
+  });
+}
+
+/**
+ * Select result row
+ */
+function selectResult(index) {
+  selectedResult = solverResults[index];
+
+  const rows = solverTbody.querySelectorAll("tr");
+  rows.forEach((row, rIdx) => {
+    if (rIdx === index) row.classList.add("selected");
+    else row.classList.remove("selected");
+  });
+
+  const land = selectedResult.landingPos;
+  tpCommandText.textContent = `/tp @p ${land.x.toFixed(2)} ${land.y.toFixed(2)} ${land.z.toFixed(2)}`;
+
+  renderTickTable(selectedResult.trajectory);
+  renderCanvas(selectedResult.trajectory);
+}
+
+/**
+ * Render tick-by-tick spreadsheet telemetry table
+ */
+function renderTickTable(trajectory) {
+  tickTbody.innerHTML = "";
+
+  trajectory.forEach((pt) => {
+    const tr = document.createElement("tr");
+    const isAccel = pt.phase === "Accelerating" || pt.phase === "Launcher";
+    const phaseClass = isAccel ? "accel" : "flight";
+
+    tr.innerHTML = `
+      <td><strong>${pt.tick}</strong></td>
+      <td>${pt.time}s</td>
+      <td><span class="phase-pill ${phaseClass}">${pt.phase}</span></td>
+      <td>${pt.x.toFixed(3)}</td>
+      <td>${pt.y.toFixed(3)}</td>
+      <td>${pt.z.toFixed(3)}</td>
+      <td>${pt.vx.toFixed(4)}</td>
+      <td>${pt.vy.toFixed(4)}</td>
+      <td>${pt.vz.toFixed(4)}</td>
+      <td>${pt.speed.toFixed(1)}</td>
+    `;
+
+    tickTbody.appendChild(tr);
+  });
+}
+
+/**
+ * Render canvas trajectory visualizer
+ */
+function renderCanvas(trajectory) {
+  const ctx = trajectoryCanvas.getContext("2d");
+  const w = trajectoryCanvas.width;
+  const h = trajectoryCanvas.height;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#020617";
+  ctx.fillRect(0, 0, w, h);
+
+  if (!trajectory || trajectory.length === 0) return;
+
+  const targetX = selectedResult.target.x;
+  const targetY = selectedResult.target.y;
+  const targetZ = selectedResult.target.z;
+
+  const isXZ = currentCanvasMode === "xz";
+
+  let minHoriz = trajectory[0].x;
+  let maxHoriz = trajectory[0].x;
+  let minVert = isXZ ? trajectory[0].z : trajectory[0].y;
+  let maxVert = isXZ ? trajectory[0].z : trajectory[0].y;
+
+  const targetHoriz = isXZ ? targetX : targetX;
+  const targetVert = isXZ ? targetZ : targetY;
+
+  minHoriz = Math.min(minHoriz, targetHoriz);
+  maxHoriz = Math.max(maxHoriz, targetHoriz);
+  minVert = Math.min(minVert, targetVert);
+  maxVert = Math.max(maxVert, targetVert);
+
+  trajectory.forEach(p => {
+    const hVal = p.x;
+    const vVal = isXZ ? p.z : p.y;
+    if (hVal < minHoriz) minHoriz = hVal;
+    if (hVal > maxHoriz) maxHoriz = hVal;
+    if (vVal < minVert) minVert = vVal;
+    if (vVal > maxVert) maxVert = vVal;
+  });
+
+  const margin = 35;
+  const rangeH = (maxHoriz - minHoriz) || 10;
+  const rangeV = (maxVert - minVert) || 10;
+
+  function toScreenX(val) {
+    return margin + ((val - minHoriz) / rangeH) * (w - 2 * margin);
+  }
+
+  function toScreenY(val) {
+    // For Y elevation, higher Y is rendered higher (lower screen Y)
+    if (!isXZ) {
+      return (h - margin) - ((val - minVert) / rangeV) * (h - 2 * margin);
+    }
+    // For Z radar, higher Z is rendered lower
+    return margin + ((val - minVert) / rangeV) * (h - 2 * margin);
+  }
+
+  // Draw grid lines
+  ctx.strokeStyle = "#1e293b";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let gx = 0; gx <= 4; gx++) {
+    const gxPos = margin + (gx / 4) * (w - 2 * margin);
+    ctx.moveTo(gxPos, 0);
+    ctx.lineTo(gxPos, h);
+  }
+  for (let gy = 0; gy <= 3; gy++) {
+    const gyPos = margin + (gy / 3) * (h - 2 * margin);
+    ctx.moveTo(0, gyPos);
+    ctx.lineTo(w, gyPos);
+  }
+  ctx.stroke();
+
+  // Axis Labels
+  ctx.fillStyle = "#64748b";
+  ctx.font = "10px 'JetBrains Mono'";
+  ctx.fillText(isXZ ? "X-Z Top Down View" : "X-Y Side Elevation Profile", margin, 15);
+
+  // Draw trajectory line
+  ctx.beginPath();
+  trajectory.forEach((pt, i) => {
+    const sx = toScreenX(pt.x);
+    const sy = toScreenY(isXZ ? pt.z : pt.y);
+    if (i === 0) ctx.moveTo(sx, sy);
+    else ctx.lineTo(sx, sy);
+  });
+  ctx.strokeStyle = "#38bdf8";
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // Draw acceleration phase highlighted segment
+  ctx.beginPath();
+  let hasAccel = false;
+  trajectory.forEach((pt, i) => {
+    if (pt.phase === "Accelerating" || pt.phase === "Launcher") {
+      const sx = toScreenX(pt.x);
+      const sy = toScreenY(isXZ ? pt.z : pt.y);
+      if (!hasAccel) { ctx.moveTo(sx, sy); hasAccel = true; }
+      else ctx.lineTo(sx, sy);
+    }
+  });
+  if (hasAccel) {
+    ctx.strokeStyle = "#f472b6";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+
+  // Origin point (Green)
+  const origPt = trajectory[0];
+  ctx.beginPath();
+  ctx.arc(toScreenX(origPt.x), toScreenY(isXZ ? origPt.z : origPt.y), 6, 0, Math.PI * 2);
+  ctx.fillStyle = "#10b981";
+  ctx.fill();
+
+  // Target point (Red crosshair)
+  const txScreen = toScreenX(targetHoriz);
+  const tyScreen = toScreenY(targetVert);
+
+  ctx.beginPath();
+  ctx.arc(txScreen, tyScreen, 6, 0, Math.PI * 2);
+  ctx.fillStyle = "#ef4444";
+  ctx.fill();
+
+  // Landing point (Cyan dot)
+  const landPt = trajectory[trajectory.length - 1];
+  ctx.beginPath();
+  ctx.arc(toScreenX(landPt.x), toScreenY(isXZ ? landPt.z : landPt.y), 4, 0, Math.PI * 2);
+  ctx.fillStyle = "#38bdf8";
+  ctx.fill();
+}
+
+// Initial calculation on launch
+runSolver();
