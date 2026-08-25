@@ -35,7 +35,7 @@
               </div>
               <div class="form-row">
                 <label for="origin-y">Origin Y</label>
-                <input type="number" id="origin-y" value="64" step="any">
+                <input type="number" id="origin-y" value="0" step="any">
               </div>
               <div class="form-row">
                 <label for="origin-z">Origin Z</label>
@@ -50,11 +50,11 @@
             <div class="grid-3">
               <div class="form-row">
                 <label for="target-x">Target X</label>
-                <input type="number" id="target-x" value="150000" step="any">
+                <input type="number" id="target-x" value="0" step="any">
               </div>
               <div class="form-row">
                 <label for="target-y">Target Y</label>
-                <input type="number" id="target-y" value="64" step="any">
+                <input type="number" id="target-y" value="128" step="any">
               </div>
               <div class="form-row">
                 <label for="target-z">Target Z</label>
@@ -105,7 +105,7 @@
               </thead>
               <tbody id="solver-tbody">
                 <tr>
-                  <td colspan="6" class="table-placeholder">Enter values and click Calculate Solutions...</td>
+                  <td colspan="6" class="table-placeholder">Enter target coordinates and click Calculate Solutions...</td>
                 </tr>
               </tbody>
             </table>
@@ -114,7 +114,7 @@
           <div class="teleport-command-box">
             <span class="command-label">Teleport Command to Landing Point:</span>
             <div class="command-container">
-              <code id="tp-command">/tp @p 0.00 64.00 0.00</code>
+              <code id="tp-command">/tp @p 0.00 0.00 0.00</code>
               <button class="btn btn-secondary btn-sm" id="btn-copy-command">Copy Player TP</button>
               <button class="btn btn-secondary btn-sm" id="btn-copy-pig-command">Copy Pig TP</button>
             </div>
