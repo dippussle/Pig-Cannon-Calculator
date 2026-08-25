@@ -253,7 +253,7 @@ function runSolver() {
   const seen = new Set();
   const topList = [];
   for (const c of candidates) {
-    const key = `${c.t1}_${c.t2}_${c.tTotal}`;
+    const key = `${c.t1}_${c.t2}`;
     if (!seen.has(key)) {
       seen.add(key);
       topList.push(c);
@@ -307,7 +307,7 @@ function runSolver() {
   if (solverResults.length > 0) {
     selectResult(0);
   } else {
-    solverTbody.innerHTML = `<tr><td colspan="7" class="table-placeholder">No solutions found. Adjust parameters.</td></tr>`;
+    solverTbody.innerHTML = `<tr><td colspan="6" class="table-placeholder">No solutions found. Adjust parameters.</td></tr>`;
     resultsCount.textContent = "0 solutions";
   }
 }
@@ -320,7 +320,7 @@ function renderTable() {
 
   solverResults.forEach((res, idx) => {
     const tr = document.createElement("tr");
-    if (selectedResult && selectedResult.t1 === res.t1 && selectedResult.t2 === res.t2 && selectedResult.tTotal === res.tTotal) {
+    if (selectedResult && selectedResult.t1 === res.t1 && selectedResult.t2 === res.t2) {
       tr.classList.add("selected");
     }
 
@@ -329,7 +329,6 @@ function renderTable() {
     tr.innerHTML = `
       <td><strong>${res.t1}t</strong></td>
       <td><strong>${res.t2}t</strong></td>
-      <td>${res.tTotal}t</td>
       <td>${res.boats}</td>
       <td>${posStr}</td>
       <td class="${res.error < 1 ? 'text-success' : 'text-warning'}">${res.error.toFixed(2)}m</td>
