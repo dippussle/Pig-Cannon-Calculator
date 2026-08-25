@@ -91,7 +91,7 @@ function getDistance3D(p1, p2) {
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
-// Closed-form sum for horizontal displacement
+// Closed-form sum for horizontal displacement (O(1))
 function calcUnitDisplacement(t, totalTicks) {
   if (t <= 0 || totalTicks <= 0 || t > totalTicks) return 0;
   const term1 = t;
@@ -99,15 +99,15 @@ function calcUnitDisplacement(t, totalTicks) {
   return (term1 - term2) / (1 - PIG_DRAG);
 }
 
-// Closed-form sum for vertical drop Y
+// Closed-form sum for vertical drop Y (O(1))
 function calcVerticalDrop(totalTicks) {
-  let vy = 0;
-  let yDrop = 0;
-  for (let t = 1; t <= totalTicks; t++) {
-    yDrop += vy;
-    vy = (vy - PIG_GRAVITY) * PIG_DRAG;
-  }
-  return yDrop;
+  if (totalTicks <= 1) return 0;
+  const d = PIG_DRAG;
+  const g = PIG_GRAVITY;
+  const k = totalTicks - 1;
+  const term1 = k;
+  const term2 = d * ((1 - Math.pow(d, k)) / (1 - d));
+  return - (g * d / (1 - d)) * (term1 - term2);
 }
 
 function simulatePig(origin, boats, dirX, dirZ, t1, t2, totalTicks) {
@@ -161,7 +161,7 @@ function simulatePig(origin, boats, dirX, dirZ, t1, t2, totalTicks) {
 }
 
 /**
- * Unlimited Binary Search & Analytical Window Solver
+ * Ultra-Fast O(1) Binary Search Solver (Instantaneous calculation)
  */
 function runSolver() {
   const origin = {
@@ -239,7 +239,7 @@ function runSolver() {
       const calcDisp = stackPush * (u1 + u2);
       const errHoriz = Math.abs(calcDisp - targetDist2D);
 
-      const yDrop = calcVerticalDrop(totalTicks);
+      const yDrop = calcVerticalDrop(totalTicks); // Instant O(1) math call
       const calcY = origin.y + yDrop;
       const errY = Math.abs(calcY - target.y);
 
@@ -264,10 +264,14 @@ function runSolver() {
 
   solverResults = [];
 
+  // Instant O(1) landing position evaluation for results table
   topList.forEach(c => {
-    const traj = simulatePig(origin, boats, dirX, dirZ, c.t1, c.t2, c.tTotal);
-    const last = traj[traj.length - 1];
-    const landingPos = { x: last.x, y: last.y, z: last.z };
+    const u1 = calcUnitDisplacement(c.t1, c.tTotal);
+    const u2 = calcUnitDisplacement(c.t2, c.tTotal);
+    const landX = origin.x + stackPush * (u1 + u2) * dirX;
+    const landZ = origin.z + stackPush * (u1 + u2) * dirZ;
+    const landY = origin.y + calcVerticalDrop(c.tTotal);
+    const landingPos = { x: landX, y: landY, z: landZ };
 
     const err3D = getDistance3D(landingPos, target);
     const landDist = getDistance2D(origin.x, origin.z, landingPos.x, landingPos.z);
@@ -296,7 +300,9 @@ function runSolver() {
       error: err3D,
       status,
       statusClass,
-      trajectory: traj
+      dirX,
+      dirZ,
+      trajectory: null // Lazy loaded on selection
     });
   });
 
@@ -343,6 +349,19 @@ function renderTable() {
 
 function selectResult(index) {
   selectedResult = solverResults[index];
+
+  // Lazy generate trajectory snapshot array ONLY for selected solution
+  if (!selectedResult.trajectory) {
+    selectedResult.trajectory = simulatePig(
+      selectedResult.origin,
+      selectedResult.boats,
+      selectedResult.dirX,
+      selectedResult.dirZ,
+      selectedResult.t1,
+      selectedResult.t2,
+      selectedResult.tTotal
+    );
+  }
 
   const rows = solverTbody.querySelectorAll("tr");
   rows.forEach((row, idx) => {
