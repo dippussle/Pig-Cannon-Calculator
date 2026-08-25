@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Minecraft Pig Cannon Calculator</title>
+  <title>Minecraft Dual-Stack Pig Cannon Calculator</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,7 +15,7 @@
     <header class="app-header">
       <div class="header-content">
         <h1>Pig Cannon Calculator</h1>
-        <p class="subtitle">Minecraft Boat Collision Duration & Pig Ballistics Solver</p>
+        <p class="subtitle">Dual Boat Stack Collision Duration & Pig Ballistics Solver</p>
       </div>
     </header>
 
@@ -63,18 +63,12 @@
             </div>
           </div>
 
-          <!-- Specific Boat Counts -->
+          <!-- Equal Boat Stacks -->
           <div class="form-group-box">
-            <span class="group-title">Launcher Boat Stack (User Specified)</span>
-            <div class="grid-2">
-              <div class="form-row">
-                <label for="boats-x">X Boats</label>
-                <input type="number" id="boats-x" value="20" step="1" min="0">
-              </div>
-              <div class="form-row">
-                <label for="boats-z">Z Boats</label>
-                <input type="number" id="boats-z" value="0" step="1" min="0">
-              </div>
+            <span class="group-title">Dual Launcher Boat Stacks</span>
+            <div class="form-row">
+              <label for="boats-per-stack">Boats per Stack (Stack 1 = Stack 2)</label>
+              <input type="number" id="boats-per-stack" value="20" step="1" min="1">
             </div>
           </div>
 
@@ -87,7 +81,7 @@
             </div>
           </div>
 
-          <button class="btn btn-primary" id="btn-calculate">Calculate Required Collision Ticks</button>
+          <button class="btn btn-primary" id="btn-calculate">Calculate Stack 1 & Stack 2 Collision Ticks</button>
         </div>
       </section>
 
@@ -101,10 +95,10 @@
             <table class="spreadsheet-table" id="solver-table">
               <thead>
                 <tr>
-                  <th>Collision Ticks ($T_{accel}$)</th>
-                  <th>Total Ticks ($T_{total}$)</th>
-                  <th>X Boats</th>
-                  <th>Z Boats</th>
+                  <th>Stack 1 Collision ($T_1$)</th>
+                  <th>Stack 2 Collision ($T_2$)</th>
+                  <th>Total Flight ($T_{total}$)</th>
+                  <th>Boats/Stack</th>
                   <th>Landing (X, Y, Z)</th>
                   <th>Distance Error</th>
                   <th>Status</th>
@@ -112,7 +106,7 @@
               </thead>
               <tbody id="solver-tbody">
                 <tr>
-                  <td colspan="7" class="table-placeholder">Enter values and click Calculate Required Collision Ticks...</td>
+                  <td colspan="7" class="table-placeholder">Enter values and click Calculate Stack 1 & Stack 2 Collision Ticks...</td>
                 </tr>
               </tbody>
             </table>
@@ -170,7 +164,7 @@
     </main>
     
     <footer class="app-footer">
-      <span>Minecraft Pig Cannon Calculator &bull; Lazy Chunk Boat Push Physics</span>
+      <span>Minecraft Pig Cannon Calculator &bull; Dual Boat Stack Push Physics</span>
     </footer>
   </div>
 
