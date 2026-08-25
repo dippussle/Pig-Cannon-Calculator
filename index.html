@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minecraft Pig Cannon Calculator</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+    <header class="app-header">
+      <div class="header-content">
+        <h1>Pig Cannon Calculator</h1>
+        <p class="subtitle">Minecraft Pig Boat Acceleration & Tick-by-Tick Ballistics Solver</p>
+      </div>
+    </header>
+
+    <main class="grid-layout">
+      <!-- Input Controls Section -->
+      <section class="card control-panel">
+        <h2 class="card-title">Parameters</h2>
+        
+        <div class="form-container">
+          <!-- Origin Coordinates -->
+          <div class="form-group-box">
+            <span class="group-title">Origin Coordinate (X, Y, Z)</span>
+            <div class="grid-3">
+              <div class="form-row">
+                <label for="origin-x">Origin X</label>
+                <input type="number" id="origin-x" value="0" step="any">
+              </div>
+              <div class="form-row">
+                <label for="origin-y">Origin Y</label>
+                <input type="number" id="origin-y" value="64" step="any">
+              </div>
+              <div class="form-row">
+                <label for="origin-z">Origin Z</label>
+                <input type="number" id="origin-z" value="0" step="any">
+              </div>
+            </div>
+          </div>
+
+          <!-- Target Coordinates -->
+          <div class="form-group-box">
+            <span class="group-title">Target Coordinate (X, Y, Z)</span>
+            <div class="grid-3">
+              <div class="form-row">
+                <label for="target-x">Target X</label>
+                <input type="number" id="target-x" value="500" step="any">
+              </div>
+              <div class="form-row">
+                <label for="target-y">Target Y</label>
+                <input type="number" id="target-y" value="64" step="any">
+              </div>
+              <div class="form-row">
+                <label for="target-z">Target Z</label>
+                <input type="number" id="target-z" value="0" step="any">
+              </div>
+            </div>
+          </div>
+
+          <!-- Cannon & Boat Settings -->
+          <div class="form-group-box">
+            <span class="group-title">Boat Push & Cannon Settings</span>
+            <div class="form-row">
+              <label for="motion-per-boat">1 Boat Motion / Tick</label>
+              <input type="number" id="motion-per-boat" value="0.0413265304548704" step="any" min="0">
+            </div>
+            
+            <div class="grid-2" style="margin-top: 10px;">
+              <div class="form-row">
+                <label for="accel-ticks">Accel Ticks</label>
+                <input type="number" id="accel-ticks" value="1" step="1" min="1">
+              </div>
+              <div class="form-row">
+                <label for="powder-snow-version">Powder Snow Factor</label>
+                <select id="powder-snow-version">
+                  <option value="0.95" selected>1.21.9+ (0.95)</option>
+                  <option value="0.90">Pre-1.21.9 (0.90)</option>
+                  <option value="1.00">None (1.00)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Entity Physics & Solver Limits -->
+          <div class="form-group-box">
+            <span class="group-title">Pig Physics & Limits</span>
+            <div class="grid-2">
+              <div class="form-row">
+                <label for="pig-drag">Air Drag</label>
+                <input type="number" id="pig-drag" value="0.91" step="0.01" min="0" max="1">
+              </div>
+              <div class="form-row">
+                <label for="pig-gravity">Gravity / Tick</label>
+                <input type="number" id="pig-gravity" value="0.08" step="0.005" min="0">
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top: 10px;">
+              <div class="form-row">
+                <label for="max-boat-stack">Max Boat Stack</label>
+                <input type="number" id="max-boat-stack" value="50" step="1" min="1">
+              </div>
+              <div class="form-row">
+                <label for="max-ticks">Max Ticks</label>
+                <input type="number" id="max-ticks" value="200" step="1" min="1">
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="btn-calculate">Calculate Solutions</button>
+        </div>
+      </section>
+
+      <!-- Results & Telemetry Inspector Section -->
+      <section class="card-stack">
+        <!-- Solver Results Card -->
+        <section class="card results-panel">
+          <h2 class="card-title">Optimal Configurations (<span id="results-count">0 solutions</span>)</h2>
+
+          <div class="table-wrap">
+            <table class="spreadsheet-table" id="solver-table">
+              <thead>
+                <tr>
+                  <th>Ticks (t)</th>
+                  <th>X Boats</th>
+                  <th>Z Boats</th>
+                  <th>Landing (X, Y, Z)</th>
+                  <th>Distance Error</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="solver-tbody">
+                <tr>
+                  <td colspan="6" class="table-placeholder">Enter values and click Calculate...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="teleport-command-box">
+            <span class="command-label">Teleport Command to Landing Point:</span>
+            <div class="command-container">
+              <code id="tp-command">/tp @p 0.00 64.00 0.00</code>
+              <button class="btn btn-secondary btn-sm" id="btn-copy-command">Copy Player TP</button>
+              <button class="btn btn-secondary btn-sm" id="btn-copy-pig-command">Copy Pig TP</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tick-by-Tick Telemetry Card -->
+        <section class="card telemetry-panel" id="telemetry-card">
+          <div class="telemetry-header">
+            <h2 class="card-title" style="border:none; margin:0; padding:0;">Tick-by-Tick Simulation Inspector</h2>
+            <div class="canvas-toggle">
+              <button class="btn btn-sm btn-secondary active" id="btn-view-xz">X-Z Top Radar</button>
+              <button class="btn btn-sm btn-secondary" id="btn-view-xy">X-Y Elevation</button>
+            </div>
+          </div>
+
+          <div class="canvas-wrap">
+            <canvas id="trajectory-canvas" width="800" height="220"></canvas>
+          </div>
+
+          <div class="table-wrap telemetry-table-wrap">
+            <table class="spreadsheet-table" id="tick-table">
+              <thead>
+                <tr>
+                  <th>Tick (t)</th>
+                  <th>Time (s)</th>
+                  <th>Phase</th>
+                  <th>X</th>
+                  <th>Y</th>
+                  <th>Z</th>
+                  <th>Vx</th>
+                  <th>Vy</th>
+                  <th>Vz</th>
+                  <th>Speed (b/s)</th>
+                </tr>
+              </thead>
+              <tbody id="tick-tbody">
+                <tr>
+                  <td colspan="10" class="table-placeholder">Select a solution configuration to view tick telemetry.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+    
+    <footer class="app-footer">
+      <span>Minecraft Pig Cannon Calculator &bull; Lazy Chunk Boat Push Physics</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
