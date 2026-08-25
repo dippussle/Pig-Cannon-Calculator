@@ -166,13 +166,13 @@ function simulatePig(origin, boats, dirX, dirZ, t1, t2, totalTicks) {
 function runSolver() {
   const origin = {
     x: parseFloat(originXInput.value) || 0,
-    y: parseFloat(originYInput.value) || 64,
+    y: parseFloat(originYInput.value) || 0,
     z: parseFloat(originZInput.value) || 0
   };
 
   const target = {
     x: parseFloat(targetXInput.value) || 0,
-    y: parseFloat(targetYInput.value) || 64,
+    y: parseFloat(targetYInput.value) || 128,
     z: parseFloat(targetZInput.value) || 0
   };
 
@@ -191,7 +191,8 @@ function runSolver() {
 
   const targetDist2D = getDistance2D(origin.x, origin.z, target.x, target.z);
   if (targetDist2D === 0) {
-    alert("Origin and Target coordinates must be different.");
+    solverTbody.innerHTML = `<tr><td colspan="6" class="table-placeholder">Enter target X or Z coordinates to calculate horizontal trajectory.</td></tr>`;
+    resultsCount.textContent = "0 solutions";
     return;
   }
 
