@@ -1,4 +1,4 @@
-// Minecraft Pig Cannon Calculator - Ultra-Fast Dual Stack Collision Duration Solver
+// Minecraft Lazy Accelerated Pig Cannon Calculator
 
 // Fixed Physics Constants (Minecraft Java Edition Pig & Powder Snow Boat Launcher)
 const EFFECTIVE_MOTION_PER_BOAT = 0.0413265304548704 * 0.95; // 0.03926020393212688 blocks/tick
@@ -224,7 +224,7 @@ function runSolver() {
   // Sort candidates by analytical distance error
   candidates.sort((a, b) => a.error - b.error);
 
-  // Take top 30 unique configurations for full simulation
+  // Take top 25 unique configurations for full simulation
   const seen = new Set();
   const topCandidates = [];
   for (const c of candidates) {
@@ -238,7 +238,7 @@ function runSolver() {
 
   solverResults = [];
 
-  // Run full simulation ONLY for the top 25 candidates (< 1ms execution time)
+  // Run full simulation ONLY for the top 25 candidates
   topCandidates.forEach(c => {
     const trajectory = simulatePigTrajectory(origin, boatsPerStack, dirX, dirZ, c.t1, c.t2, c.tTotal);
     const lastPoint = trajectory[trajectory.length - 1];
@@ -308,7 +308,7 @@ function renderSolverTable() {
     tr.innerHTML = `
       <td><strong>${res.t1}t</strong></td>
       <td><strong>${res.t2}t</strong></td>
-      <td>${res.tTotal}t total</td>
+      <td>${res.tTotal}t</td>
       <td>${res.boatsPerStack}</td>
       <td>${posStr}</td>
       <td class="${res.error < 1 ? 'text-success' : 'text-warning'}">${res.error.toFixed(2)}m</td>
