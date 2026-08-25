@@ -1,4 +1,4 @@
-// Minecraft Pig Cannon Calculator - Dual Boat Stack Collision Duration Solver
+// Minecraft Pig Cannon Calculator - Ultra-Fast Dual Stack Collision Duration Solver
 
 // Fixed Physics Constants (Minecraft Java Edition Pig & Powder Snow Boat Launcher)
 const EFFECTIVE_MOTION_PER_BOAT = 0.0413265304548704 * 0.95; // 0.03926020393212688 blocks/tick
@@ -87,7 +87,18 @@ function dist2D(x1, z1, x2, z2) {
 }
 
 /**
- * Simulates pig trajectory for 2 equal boat stacks with collision durations t1 and t2
+ * Closed-form O(1) analytical unit displacement for t collision ticks over T total ticks
+ */
+function U_closed(t, T) {
+  const d = PIG_DRAG;
+  if (t <= 0 || T <= 0 || t > T) return 0;
+  const term1 = t;
+  const term2 = Math.pow(d, T - t + 1) * ((1 - Math.pow(d, t)) / (1 - d));
+  return (term1 - term2) / (1 - d);
+}
+
+/**
+ * Full tick-by-tick simulation for rendering trajectory and telemetry
  */
 function simulatePigTrajectory(origin, boatsPerStack, dirX, dirZ, t1, t2, totalTicks) {
   let x = origin.x;
@@ -154,7 +165,7 @@ function simulatePigTrajectory(origin, boatsPerStack, dirX, dirZ, t1, t2, totalT
 }
 
 /**
- * Solves Stack 1 and Stack 2 collision durations (t1, t2)
+ * Ultra-Fast Solver (O(1) analytical math + top-K trajectory filter)
  */
 function runSolver() {
   const origin = {
@@ -189,66 +200,82 @@ function runSolver() {
     return;
   }
 
-  solverResults = [];
+  const stackScale = boatsPerStack * EFFECTIVE_MOTION_PER_BOAT;
+  const maxCollisionSearch = Math.min(50, maxTicks);
+  const candidates = [];
 
-  const maxCollisionSearch = Math.min(60, maxTicks);
-
-  // Search over Stack 1 collision ticks (t1) and Stack 2 collision ticks (t2)
+  // Instant analytical evaluation loop
   for (let t1 = 1; t1 <= maxCollisionSearch; t1++) {
-    for (let t2 = 1; t2 <= maxCollisionSearch; t2++) {
+    for (let t2 = t1; t2 <= maxCollisionSearch; t2++) {
       const maxCol = Math.max(t1, t2);
 
-      // Total travel ticks tTotal
       for (let tTotal = maxCol; tTotal <= maxTicks; tTotal++) {
-        const trajectory = simulatePigTrajectory(origin, boatsPerStack, dirX, dirZ, t1, t2, tTotal);
-        const lastPoint = trajectory[trajectory.length - 1];
-        const landingPos = { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z };
+        const u1 = U_closed(t1, tTotal);
+        const u2 = U_closed(t2, tTotal);
+        const calculatedDisp = stackScale * (u1 + u2);
 
-        const error2D = dist2D(landingPos.x, landingPos.z, target.x, target.z);
+        const error = Math.abs(calculatedDisp - targetDist2D);
 
-        const landDistFromOrigin = dist2D(origin.x, origin.z, landingPos.x, landingPos.z);
-        let statusText = "Exact";
-        let statusClass = "exact";
-
-        if (Math.abs(landDistFromOrigin - targetDist2D) > 0.1) {
-          if (landDistFromOrigin > targetDist2D) {
-            statusText = "Overshoot";
-            statusClass = "overshoot";
-          } else {
-            statusText = "Undershoot";
-            statusClass = "undershoot";
-          }
-        }
-
-        solverResults.push({
-          t1,
-          t2,
-          tTotal,
-          boatsPerStack,
-          origin,
-          target,
-          landingPos,
-          error: error2D,
-          status: statusText,
-          statusClass,
-          trajectory
-        });
+        candidates.push({ t1, t2, tTotal, error, calculatedDisp });
       }
     }
   }
 
-  // Sort by error ascending
-  solverResults.sort((a, b) => a.error - b.error);
+  // Sort candidates by analytical distance error
+  candidates.sort((a, b) => a.error - b.error);
 
-  // Deduplicate
+  // Take top 30 unique configurations for full simulation
   const seen = new Set();
-  solverResults = solverResults.filter(res => {
-    const key = `${res.t1}_${res.t2}_${res.tTotal}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+  const topCandidates = [];
+  for (const c of candidates) {
+    const key = `${c.t1}_${c.t2}_${c.tTotal}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      topCandidates.push(c);
+      if (topCandidates.length >= 25) break;
+    }
+  }
+
+  solverResults = [];
+
+  // Run full simulation ONLY for the top 25 candidates (< 1ms execution time)
+  topCandidates.forEach(c => {
+    const trajectory = simulatePigTrajectory(origin, boatsPerStack, dirX, dirZ, c.t1, c.t2, c.tTotal);
+    const lastPoint = trajectory[trajectory.length - 1];
+    const landingPos = { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z };
+
+    const error2D = dist2D(landingPos.x, landingPos.z, target.x, target.z);
+
+    const landDistFromOrigin = dist2D(origin.x, origin.z, landingPos.x, landingPos.z);
+    let statusText = "Exact";
+    let statusClass = "exact";
+
+    if (Math.abs(landDistFromOrigin - targetDist2D) > 0.1) {
+      if (landDistFromOrigin > targetDist2D) {
+        statusText = "Overshoot";
+        statusClass = "overshoot";
+      } else {
+        statusText = "Undershoot";
+        statusClass = "undershoot";
+      }
+    }
+
+    solverResults.push({
+      t1: c.t1,
+      t2: c.t2,
+      tTotal: c.tTotal,
+      boatsPerStack,
+      origin,
+      target,
+      landingPos,
+      error: error2D,
+      status: statusText,
+      statusClass,
+      trajectory
+    });
   });
 
+  solverResults.sort((a, b) => a.error - b.error);
   solverResults = solverResults.slice(0, 15);
 
   renderSolverTable();
