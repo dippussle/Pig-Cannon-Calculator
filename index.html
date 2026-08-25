@@ -15,7 +15,7 @@
     <header class="app-header">
       <div class="header-content">
         <h1>Pig Cannon Calculator</h1>
-        <p class="subtitle">Minecraft Pig Boat Acceleration & Tick-by-Tick Ballistics Solver</p>
+        <p class="subtitle">Minecraft Boat Collision Duration & Pig Ballistics Solver</p>
       </div>
     </header>
 
@@ -63,57 +63,31 @@
             </div>
           </div>
 
-          <!-- Cannon & Boat Settings -->
+          <!-- Specific Boat Counts -->
           <div class="form-group-box">
-            <span class="group-title">Boat Push & Cannon Settings</span>
-            <div class="form-row">
-              <label for="motion-per-boat">1 Boat Motion / Tick</label>
-              <input type="number" id="motion-per-boat" value="0.0413265304548704" step="any" min="0">
-            </div>
-            
-            <div class="grid-2" style="margin-top: 10px;">
-              <div class="form-row">
-                <label for="accel-ticks">Accel Ticks</label>
-                <input type="number" id="accel-ticks" value="1" step="1" min="1">
-              </div>
-              <div class="form-row">
-                <label for="powder-snow-version">Powder Snow Factor</label>
-                <select id="powder-snow-version">
-                  <option value="0.95" selected>1.21.9+ (0.95)</option>
-                  <option value="0.90">Pre-1.21.9 (0.90)</option>
-                  <option value="1.00">None (1.00)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- Entity Physics & Solver Limits -->
-          <div class="form-group-box">
-            <span class="group-title">Pig Physics & Limits</span>
+            <span class="group-title">Launcher Boat Stack (User Specified)</span>
             <div class="grid-2">
               <div class="form-row">
-                <label for="pig-drag">Air Drag</label>
-                <input type="number" id="pig-drag" value="0.91" step="0.01" min="0" max="1">
+                <label for="boats-x">X Boats</label>
+                <input type="number" id="boats-x" value="20" step="1" min="0">
               </div>
               <div class="form-row">
-                <label for="pig-gravity">Gravity / Tick</label>
-                <input type="number" id="pig-gravity" value="0.08" step="0.005" min="0">
-              </div>
-            </div>
-
-            <div class="grid-2" style="margin-top: 10px;">
-              <div class="form-row">
-                <label for="max-boat-stack">Max Boat Stack</label>
-                <input type="number" id="max-boat-stack" value="50" step="1" min="1">
-              </div>
-              <div class="form-row">
-                <label for="max-ticks">Max Ticks</label>
-                <input type="number" id="max-ticks" value="200" step="1" min="1">
+                <label for="boats-z">Z Boats</label>
+                <input type="number" id="boats-z" value="0" step="1" min="0">
               </div>
             </div>
           </div>
 
-          <button class="btn btn-primary" id="btn-calculate">Calculate Solutions</button>
+          <!-- Solver Limits -->
+          <div class="form-group-box">
+            <span class="group-title">Search Range</span>
+            <div class="form-row">
+              <label for="max-ticks">Max Simulation Ticks</label>
+              <input type="number" id="max-ticks" value="300" step="1" min="10">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="btn-calculate">Calculate Required Collision Ticks</button>
         </div>
       </section>
 
@@ -127,7 +101,8 @@
             <table class="spreadsheet-table" id="solver-table">
               <thead>
                 <tr>
-                  <th>Ticks (t)</th>
+                  <th>Collision Ticks ($T_{accel}$)</th>
+                  <th>Total Ticks ($T_{total}$)</th>
                   <th>X Boats</th>
                   <th>Z Boats</th>
                   <th>Landing (X, Y, Z)</th>
@@ -137,7 +112,7 @@
               </thead>
               <tbody id="solver-tbody">
                 <tr>
-                  <td colspan="6" class="table-placeholder">Enter values and click Calculate...</td>
+                  <td colspan="7" class="table-placeholder">Enter values and click Calculate Required Collision Ticks...</td>
                 </tr>
               </tbody>
             </table>
@@ -173,7 +148,7 @@
                 <tr>
                   <th>Tick (t)</th>
                   <th>Time (s)</th>
-                  <th>Phase</th>
+                  <th>State</th>
                   <th>X</th>
                   <th>Y</th>
                   <th>Z</th>
