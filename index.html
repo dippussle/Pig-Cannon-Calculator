@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Minecraft Dual-Stack Pig Cannon Calculator</title>
+  <title>Minecraft Lazy Accelerated Pig Cannon Calculator</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,8 +14,8 @@
   <div class="app-container">
     <header class="app-header">
       <div class="header-content">
-        <h1>Pig Cannon Calculator</h1>
-        <p class="subtitle">Dual Boat Stack Collision Duration & Pig Ballistics Solver</p>
+        <h1>Lazy Accelerated Pig Cannon Calculator</h1>
+        <p class="subtitle">Minecraft Pig Boat Acceleration & Tick-by-Tick Ballistics Calculator</p>
       </div>
     </header>
 
@@ -63,11 +63,11 @@
             </div>
           </div>
 
-          <!-- Equal Boat Stacks -->
+          <!-- Launcher Boat Stack -->
           <div class="form-group-box">
-            <span class="group-title">Dual Launcher Boat Stacks</span>
+            <span class="group-title">Launcher Boat Stack</span>
             <div class="form-row">
-              <label for="boats-per-stack">Boats per Stack (Stack 1 = Stack 2)</label>
+              <label for="boats-per-stack">Boats per Stack</label>
               <input type="number" id="boats-per-stack" value="20" step="1" min="1">
             </div>
           </div>
@@ -81,7 +81,7 @@
             </div>
           </div>
 
-          <button class="btn btn-primary" id="btn-calculate">Calculate Stack 1 & Stack 2 Collision Ticks</button>
+          <button class="btn btn-primary" id="btn-calculate">Calculate Solutions</button>
         </div>
       </section>
 
@@ -95,9 +95,9 @@
             <table class="spreadsheet-table" id="solver-table">
               <thead>
                 <tr>
-                  <th>Stack 1 Collision ($T_1$)</th>
-                  <th>Stack 2 Collision ($T_2$)</th>
-                  <th>Total Flight ($T_{total}$)</th>
+                  <th>Stack 1 Ticks</th>
+                  <th>Stack 2 Ticks</th>
+                  <th>Total Ticks</th>
                   <th>Boats/Stack</th>
                   <th>Landing (X, Y, Z)</th>
                   <th>Distance Error</th>
@@ -106,7 +106,7 @@
               </thead>
               <tbody id="solver-tbody">
                 <tr>
-                  <td colspan="7" class="table-placeholder">Enter values and click Calculate Stack 1 & Stack 2 Collision Ticks...</td>
+                  <td colspan="7" class="table-placeholder">Enter values and click Calculate Solutions...</td>
                 </tr>
               </tbody>
             </table>
@@ -164,7 +164,7 @@
     </main>
     
     <footer class="app-footer">
-      <span>Minecraft Pig Cannon Calculator &bull; Dual Boat Stack Push Physics</span>
+      <span>Minecraft Lazy Accelerated Pig Cannon Calculator &bull; Boat Push Physics</span>
     </footer>
   </div>
 
