@@ -1,11 +1,11 @@
 // Minecraft Lazy Accelerated Pig Cannon Calculator
-// Author: dippussle
 
-const BOAT_MOTION = 0.03926020393212688; // 1 boat push / tick (1.21.9+ powder snow factor)
-const DRAG = 0.91;
-const GRAVITY = 0.08;
+// Fixed Physics Constants (Minecraft Java Edition Pig & Powder Snow Boat Launcher)
+const EFFECTIVE_MOTION_PER_BOAT = 0.0413265304548704 * 0.95; // 0.03926020393212688 blocks/tick
+const PIG_DRAG = 0.91;
+const PIG_GRAVITY = 0.08;
 
-// UI Elements
+// DOM Elements
 const originXInput = document.getElementById("origin-x");
 const originYInput = document.getElementById("origin-y");
 const originZInput = document.getElementById("origin-z");
@@ -14,11 +14,12 @@ const targetXInput = document.getElementById("target-x");
 const targetYInput = document.getElementById("target-y");
 const targetZInput = document.getElementById("target-z");
 
-const boatsInput = document.getElementById("boats-per-stack");
-const maxCollisionInput = document.getElementById("max-collision-ticks");
+const boatsPerStackInput = document.getElementById("boats-per-stack");
+const maxCollisionTicksInput = document.getElementById("max-collision-ticks");
 const maxTicksInput = document.getElementById("max-ticks");
 
 const btnCalculate = document.getElementById("btn-calculate");
+
 const solverTbody = document.getElementById("solver-tbody");
 const resultsCount = document.getElementById("results-count");
 
@@ -28,9 +29,11 @@ const btnCopyPigCommand = document.getElementById("btn-copy-pig-command");
 
 const trajectoryCanvas = document.getElementById("trajectory-canvas");
 const tickTbody = document.getElementById("tick-tbody");
+
 const btnViewXZ = document.getElementById("btn-view-xz");
 const btnViewXY = document.getElementById("btn-view-xy");
 
+// Application State
 let solverResults = [];
 let selectedResult = null;
 let canvasMode = "xz";
@@ -82,12 +85,30 @@ function getDistance2D(x1, z1, x2, z2) {
   return Math.sqrt(dx * dx + dz * dz);
 }
 
-// Geometric series closed-form sum for displacement
+function getDistance3D(p1, p2) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const dz = p2.z - p1.z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+// Closed-form sum for horizontal displacement
 function calcUnitDisplacement(t, totalTicks) {
   if (t <= 0 || totalTicks <= 0 || t > totalTicks) return 0;
   const term1 = t;
-  const term2 = Math.pow(DRAG, totalTicks - t + 1) * ((1 - Math.pow(DRAG, t)) / (1 - DRAG));
-  return (term1 - term2) / (1 - DRAG);
+  const term2 = Math.pow(PIG_DRAG, totalTicks - t + 1) * ((1 - Math.pow(PIG_DRAG, t)) / (1 - PIG_DRAG));
+  return (term1 - term2) / (1 - PIG_DRAG);
+}
+
+// Closed-form sum for vertical drop Y
+function calcVerticalDrop(totalTicks) {
+  let vy = 0;
+  let yDrop = 0;
+  for (let t = 1; t <= totalTicks; t++) {
+    yDrop += vy;
+    vy = (vy - PIG_GRAVITY) * PIG_DRAG;
+  }
+  return yDrop;
 }
 
 function simulatePig(origin, boats, dirX, dirZ, t1, t2, totalTicks) {
@@ -112,7 +133,7 @@ function simulatePig(origin, boats, dirX, dirZ, t1, t2, totalTicks) {
     }
 
     if (activeStacks > 0) {
-      const push = activeStacks * boats * BOAT_MOTION;
+      const push = activeStacks * boats * EFFECTIVE_MOTION_PER_BOAT;
       vx += push * dirX;
       vz += push * dirZ;
     }
@@ -121,9 +142,9 @@ function simulatePig(origin, boats, dirX, dirZ, t1, t2, totalTicks) {
     y += vy;
     z += vz;
 
-    vx *= DRAG;
-    vz *= DRAG;
-    vy = (vy - GRAVITY) * DRAG;
+    vx *= PIG_DRAG;
+    vz *= PIG_DRAG;
+    vy = (vy - PIG_GRAVITY) * PIG_DRAG;
 
     const speed = Math.sqrt(vx * vx + vy * vy + vz * vz) * 20;
 
@@ -153,8 +174,8 @@ function runSolver() {
     z: parseFloat(targetZInput.value) || 0
   };
 
-  const boats = parseInt(boatsInput.value, 10) || 1;
-  const maxCollision = parseInt(maxCollisionInput.value, 10) || 100;
+  const boats = parseInt(boatsPerStackInput.value, 10) || 1;
+  const maxCollision = parseInt(maxCollisionTicksInput.value, 10) || 100;
   const maxTicks = parseInt(maxTicksInput.value, 10) || 300;
 
   if (boats <= 0) {
@@ -167,16 +188,17 @@ function runSolver() {
   const dirX = dx >= 0 ? 1 : -1;
   const dirZ = dz >= 0 ? 1 : -1;
 
-  const targetDist = getDistance2D(origin.x, origin.z, target.x, target.z);
-  if (targetDist === 0) {
+  const targetDist2D = getDistance2D(origin.x, origin.z, target.x, target.z);
+  if (targetDist2D === 0) {
     alert("Origin and Target coordinates must be different.");
     return;
   }
 
-  const stackPush = boats * BOAT_MOTION;
+  const stackPush = boats * EFFECTIVE_MOTION_PER_BOAT;
   const collisionLimit = Math.min(maxCollision, maxTicks);
   const candidates = [];
 
+  // Analytical search factoring 3D landing error (X, Y, Z)
   for (let t1 = 1; t1 <= collisionLimit; t1++) {
     for (let t2 = t1; t2 <= collisionLimit; t2++) {
       const minFlight = Math.max(t1, t2);
@@ -184,10 +206,17 @@ function runSolver() {
       for (let tTotal = minFlight; tTotal <= maxTicks; tTotal++) {
         const u1 = calcUnitDisplacement(t1, tTotal);
         const u2 = calcUnitDisplacement(t2, tTotal);
-        const disp = stackPush * (u1 + u2);
-        const err = Math.abs(disp - targetDist);
+        const calcDisp = stackPush * (u1 + u2);
+        const errHoriz = Math.abs(calcDisp - targetDist2D);
 
-        candidates.push({ t1, t2, tTotal, err });
+        const yDrop = calcVerticalDrop(tTotal);
+        const calcY = origin.y + yDrop;
+        const errY = Math.abs(calcY - target.y);
+
+        // Combined 3D distance error
+        const err3D = Math.sqrt(errHoriz * errHoriz + errY * errY);
+
+        candidates.push({ t1, t2, tTotal, err: err3D, errHoriz });
       }
     }
   }
@@ -212,14 +241,14 @@ function runSolver() {
     const last = traj[traj.length - 1];
     const landingPos = { x: last.x, y: last.y, z: last.z };
 
-    const err = getDistance2D(landingPos.x, landingPos.z, target.x, target.z);
+    const err3D = getDistance3D(landingPos, target);
     const landDist = getDistance2D(origin.x, origin.z, landingPos.x, landingPos.z);
 
     let status = "Exact";
     let statusClass = "exact";
 
-    if (Math.abs(landDist - targetDist) > 0.1) {
-      if (landDist > targetDist) {
+    if (Math.abs(landDist - targetDist2D) > 0.1) {
+      if (landDist > targetDist2D) {
         status = "Overshoot";
         statusClass = "overshoot";
       } else {
@@ -236,7 +265,7 @@ function runSolver() {
       origin,
       target,
       landingPos,
-      error: err,
+      error: err3D,
       status,
       statusClass,
       trajectory: traj
@@ -388,7 +417,7 @@ function drawTrajectory(trajectory) {
     ctx.lineTo(px, h);
   }
   for (let gy = 0; gy <= 3; gy++) {
-    const py = padding + (gy / 3) * (h - 2 * padding);
+    const py = padding + (gy / 3) * (h - 2 * margin);
     ctx.moveTo(0, py);
     ctx.lineTo(w, py);
   }
