@@ -1,4 +1,4 @@
-// Minecraft Pig Cannon Calculator - Boat Collision Duration & Ballistics Solver
+// Minecraft Pig Cannon Calculator - Dual Boat Stack Collision Duration Solver
 
 // Fixed Physics Constants (Minecraft Java Edition Pig & Powder Snow Boat Launcher)
 const EFFECTIVE_MOTION_PER_BOAT = 0.0413265304548704 * 0.95; // 0.03926020393212688 blocks/tick
@@ -14,8 +14,7 @@ const targetXInput = document.getElementById("target-x");
 const targetYInput = document.getElementById("target-y");
 const targetZInput = document.getElementById("target-z");
 
-const boatsXInput = document.getElementById("boats-x");
-const boatsZInput = document.getElementById("boats-z");
+const boatsPerStackInput = document.getElementById("boats-per-stack");
 const maxTicksInput = document.getElementById("max-ticks");
 
 const btnCalculate = document.getElementById("btn-calculate");
@@ -88,9 +87,9 @@ function dist2D(x1, z1, x2, z2) {
 }
 
 /**
- * Simulates pig trajectory for a given collision duration (collisionTicks) and total flight ticks
+ * Simulates pig trajectory for 2 equal boat stacks with collision durations t1 and t2
  */
-function simulatePigTrajectory(origin, bx, bz, dirX, dirZ, collisionTicks, totalTicks) {
+function simulatePigTrajectory(origin, boatsPerStack, dirX, dirZ, t1, t2, totalTicks) {
   let x = origin.x;
   let y = origin.y;
   let z = origin.z;
@@ -103,21 +102,30 @@ function simulatePigTrajectory(origin, bx, bz, dirX, dirZ, collisionTicks, total
   trajectory.push({
     tick: 0,
     time: "0.00",
-    phase: "Launcher",
+    phase: "Launcher Setup",
     x, y, z,
     vx, vy, vz,
     speed: 0
   });
 
-  const pushX = bx * EFFECTIVE_MOTION_PER_BOAT * dirX;
-  const pushZ = bz * EFFECTIVE_MOTION_PER_BOAT * dirZ;
-
   for (let t = 1; t <= totalTicks; t++) {
-    const isColliding = t <= collisionTicks;
+    let activeStacks = 0;
+    if (t <= t1) activeStacks += 1;
+    if (t <= t2) activeStacks += 1;
 
-    if (isColliding) {
-      vx += pushX;
-      vz += pushZ;
+    let phaseName = "Free Flight";
+    if (activeStacks === 2) {
+      phaseName = "Colliding (Stack 1 & Stack 2)";
+    } else if (t <= t1 && t > t2) {
+      phaseName = "Colliding (Stack 1 Only)";
+    } else if (t > t1 && t <= t2) {
+      phaseName = "Colliding (Stack 2 Only)";
+    }
+
+    if (activeStacks > 0) {
+      const pushFactor = activeStacks * boatsPerStack;
+      vx += pushFactor * EFFECTIVE_MOTION_PER_BOAT * dirX;
+      vz += pushFactor * EFFECTIVE_MOTION_PER_BOAT * dirZ;
     }
 
     // Position update
@@ -135,7 +143,7 @@ function simulatePigTrajectory(origin, bx, bz, dirX, dirZ, collisionTicks, total
     trajectory.push({
       tick: t,
       time: (t * 0.05).toFixed(2),
-      phase: isColliding ? "Colliding with Boats" : "Free Flight",
+      phase: phaseName,
       x, y, z,
       vx, vy, vz,
       speed: speedVal
@@ -146,7 +154,7 @@ function simulatePigTrajectory(origin, bx, bz, dirX, dirZ, collisionTicks, total
 }
 
 /**
- * Solves how many ticks the boat stack must stay colliding with the pig
+ * Solves Stack 1 and Stack 2 collision durations (t1, t2)
  */
 function runSolver() {
   const origin = {
@@ -161,19 +169,18 @@ function runSolver() {
     z: parseFloat(targetZInput.value) || 0
   };
 
-  const bx = parseInt(boatsXInput.value, 10) || 0;
-  const bz = parseInt(boatsZInput.value, 10) || 0;
+  const boatsPerStack = parseInt(boatsPerStackInput.value, 10) || 1;
   const maxTicks = parseInt(maxTicksInput.value, 10) || 300;
 
-  if (bx === 0 && bz === 0) {
-    alert("Please enter a non-zero boat count for X Boats or Z Boats.");
+  if (boatsPerStack <= 0) {
+    alert("Please enter at least 1 boat per stack.");
     return;
   }
 
   const dx = target.x - origin.x;
   const dz = target.z - origin.z;
-  const dirX = dx >= 0 ? 1 : -1;
-  const dirZ = dz >= 0 ? 1 : -1;
+  const dirX = dx >= 0 ? 1 : (dx < 0 ? -1 : 0);
+  const dirZ = dz >= 0 ? 1 : (dz < 0 ? -1 : 0);
 
   const targetDist2D = dist2D(origin.x, origin.z, target.x, target.z);
 
@@ -184,43 +191,49 @@ function runSolver() {
 
   solverResults = [];
 
-  // Iterate over collision ticks T_accel
-  for (let cTicks = 1; cTicks <= Math.min(100, maxTicks); cTicks++) {
-    // Iterate over total flight ticks T_total
-    for (let tTicks = cTicks; tTicks <= maxTicks; tTicks++) {
-      const trajectory = simulatePigTrajectory(origin, bx, bz, dirX, dirZ, cTicks, tTicks);
-      const lastPoint = trajectory[trajectory.length - 1];
-      const landingPos = { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z };
+  const maxCollisionSearch = Math.min(60, maxTicks);
 
-      const error2D = dist2D(landingPos.x, landingPos.z, target.x, target.z);
+  // Search over Stack 1 collision ticks (t1) and Stack 2 collision ticks (t2)
+  for (let t1 = 1; t1 <= maxCollisionSearch; t1++) {
+    for (let t2 = 1; t2 <= maxCollisionSearch; t2++) {
+      const maxCol = Math.max(t1, t2);
 
-      const landDistFromOrigin = dist2D(origin.x, origin.z, landingPos.x, landingPos.z);
-      let statusText = "Exact";
-      let statusClass = "exact";
+      // Total travel ticks tTotal
+      for (let tTotal = maxCol; tTotal <= maxTicks; tTotal++) {
+        const trajectory = simulatePigTrajectory(origin, boatsPerStack, dirX, dirZ, t1, t2, tTotal);
+        const lastPoint = trajectory[trajectory.length - 1];
+        const landingPos = { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z };
 
-      if (Math.abs(landDistFromOrigin - targetDist2D) > 0.1) {
-        if (landDistFromOrigin > targetDist2D) {
-          statusText = "Overshoot";
-          statusClass = "overshoot";
-        } else {
-          statusText = "Undershoot";
-          statusClass = "undershoot";
+        const error2D = dist2D(landingPos.x, landingPos.z, target.x, target.z);
+
+        const landDistFromOrigin = dist2D(origin.x, origin.z, landingPos.x, landingPos.z);
+        let statusText = "Exact";
+        let statusClass = "exact";
+
+        if (Math.abs(landDistFromOrigin - targetDist2D) > 0.1) {
+          if (landDistFromOrigin > targetDist2D) {
+            statusText = "Overshoot";
+            statusClass = "overshoot";
+          } else {
+            statusText = "Undershoot";
+            statusClass = "undershoot";
+          }
         }
-      }
 
-      solverResults.push({
-        cTicks,
-        tTicks,
-        bx,
-        bz,
-        origin,
-        target,
-        landingPos,
-        error: error2D,
-        status: statusText,
-        statusClass,
-        trajectory
-      });
+        solverResults.push({
+          t1,
+          t2,
+          tTotal,
+          boatsPerStack,
+          origin,
+          target,
+          landingPos,
+          error: error2D,
+          status: statusText,
+          statusClass,
+          trajectory
+        });
+      }
     }
   }
 
@@ -230,7 +243,7 @@ function runSolver() {
   // Deduplicate
   const seen = new Set();
   solverResults = solverResults.filter(res => {
-    const key = `${res.cTicks}_${res.tTicks}`;
+    const key = `${res.t1}_${res.t2}_${res.tTotal}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -243,7 +256,7 @@ function runSolver() {
   if (solverResults.length > 0) {
     selectResult(0);
   } else {
-    solverTbody.innerHTML = `<tr><td colspan="7" class="table-placeholder">No valid configurations found. Try adjusting boat counts or search range.</td></tr>`;
+    solverTbody.innerHTML = `<tr><td colspan="7" class="table-placeholder">No valid configurations found. Try adjusting boat count or search range.</td></tr>`;
     resultsCount.textContent = "0 solutions";
   }
 }
@@ -259,17 +272,17 @@ function renderSolverTable() {
 
   solverResults.forEach((res, idx) => {
     const tr = document.createElement("tr");
-    if (selectedResult && selectedResult.cTicks === res.cTicks && selectedResult.tTicks === res.tTicks) {
+    if (selectedResult && selectedResult.t1 === res.t1 && selectedResult.t2 === res.t2 && selectedResult.tTotal === res.tTotal) {
       tr.classList.add("selected");
     }
 
     const posStr = `(${res.landingPos.x.toFixed(1)}, ${res.landingPos.y.toFixed(1)}, ${res.landingPos.z.toFixed(1)})`;
 
     tr.innerHTML = `
-      <td><strong>${res.cTicks}t collision</strong></td>
-      <td>${res.tTicks}t total</td>
-      <td>${res.bx}</td>
-      <td>${res.bz}</td>
+      <td><strong>${res.t1}t</strong></td>
+      <td><strong>${res.t2}t</strong></td>
+      <td>${res.tTotal}t total</td>
+      <td>${res.boatsPerStack}</td>
       <td>${posStr}</td>
       <td class="${res.error < 1 ? 'text-success' : 'text-warning'}">${res.error.toFixed(2)}m</td>
       <td><span class="status-pill ${res.statusClass}">${res.status}</span></td>
@@ -307,7 +320,7 @@ function renderTickTable(trajectory) {
 
   trajectory.forEach((pt) => {
     const tr = document.createElement("tr");
-    const isColliding = pt.phase === "Colliding with Boats" || pt.phase === "Launcher";
+    const isColliding = pt.phase.startsWith("Colliding") || pt.phase.startsWith("Launcher");
     const phaseClass = isColliding ? "accel" : "flight";
 
     tr.innerHTML = `
@@ -421,7 +434,7 @@ function renderCanvas(trajectory) {
   ctx.beginPath();
   let hasCollision = false;
   trajectory.forEach((pt) => {
-    if (pt.phase === "Colliding with Boats" || pt.phase === "Launcher") {
+    if (pt.phase.startsWith("Colliding") || pt.phase.startsWith("Launcher")) {
       const sx = toScreenX(pt.x);
       const sy = toScreenY(isXZ ? pt.z : pt.y);
       if (!hasCollision) { ctx.moveTo(sx, sy); hasCollision = true; }
