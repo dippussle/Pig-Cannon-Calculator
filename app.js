@@ -15,6 +15,7 @@ const targetYInput = document.getElementById("target-y");
 const targetZInput = document.getElementById("target-z");
 
 const boatsPerStackInput = document.getElementById("boats-per-stack");
+const maxCollisionTicksInput = document.getElementById("max-collision-ticks");
 const maxTicksInput = document.getElementById("max-ticks");
 
 const btnCalculate = document.getElementById("btn-calculate");
@@ -181,6 +182,7 @@ function runSolver() {
   };
 
   const boatsPerStack = parseInt(boatsPerStackInput.value, 10) || 1;
+  const maxCollisionTicks = parseInt(maxCollisionTicksInput.value, 10) || 100;
   const maxTicks = parseInt(maxTicksInput.value, 10) || 300;
 
   if (boatsPerStack <= 0) {
@@ -201,12 +203,12 @@ function runSolver() {
   }
 
   const stackScale = boatsPerStack * EFFECTIVE_MOTION_PER_BOAT;
-  const maxCollisionSearch = Math.min(50, maxTicks);
+  const collisionLimit = Math.min(maxCollisionTicks, maxTicks);
   const candidates = [];
 
-  // Instant analytical evaluation loop
-  for (let t1 = 1; t1 <= maxCollisionSearch; t1++) {
-    for (let t2 = t1; t2 <= maxCollisionSearch; t2++) {
+  // Instant analytical evaluation loop over user-configured collision search limit
+  for (let t1 = 1; t1 <= collisionLimit; t1++) {
+    for (let t2 = t1; t2 <= collisionLimit; t2++) {
       const maxCol = Math.max(t1, t2);
 
       for (let tTotal = maxCol; tTotal <= maxTicks; tTotal++) {
@@ -283,7 +285,7 @@ function runSolver() {
   if (solverResults.length > 0) {
     selectResult(0);
   } else {
-    solverTbody.innerHTML = `<tr><td colspan="7" class="table-placeholder">No valid configurations found. Try adjusting boat count or search range.</td></tr>`;
+    solverTbody.innerHTML = `<tr><td colspan="7" class="table-placeholder">No valid configurations found. Try adjusting search limits.</td></tr>`;
     resultsCount.textContent = "0 solutions";
   }
 }
