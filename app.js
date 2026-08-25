@@ -16,7 +16,6 @@ const targetZInput = document.getElementById("target-z");
 
 const boatsPerStackInput = document.getElementById("boats-per-stack");
 const maxCollisionTicksInput = document.getElementById("max-collision-ticks");
-const maxTicksInput = document.getElementById("max-ticks");
 
 const btnCalculate = document.getElementById("btn-calculate");
 
@@ -161,6 +160,9 @@ function simulatePig(origin, boats, dirX, dirZ, t1, t2, totalTicks) {
   return trajectory;
 }
 
+/**
+ * Unlimited Binary Search & Analytical Window Solver
+ */
 function runSolver() {
   const origin = {
     x: parseFloat(originXInput.value) || 0,
@@ -175,8 +177,7 @@ function runSolver() {
   };
 
   const boats = parseInt(boatsPerStackInput.value, 10) || 1;
-  const maxCollision = parseInt(maxCollisionTicksInput.value, 10) || 100;
-  const maxTicks = parseInt(maxTicksInput.value, 10) || 300;
+  const maxCollision = parseInt(maxCollisionTicksInput.value, 10) || 20000;
 
   if (boats <= 0) {
     alert("Please enter a valid boat count.");
@@ -195,30 +196,55 @@ function runSolver() {
   }
 
   const stackPush = boats * EFFECTIVE_MOTION_PER_BOAT;
-  const collisionLimit = Math.min(maxCollision, maxTicks);
+
+  // 1. Binary search to find ideal collision tick T_ideal for target distance
+  let low = 1;
+  let high = maxCollision;
+  let bestT = 1;
+  let minErr = Infinity;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const totalT = mid + 35;
+    const u = calcUnitDisplacement(mid, totalT);
+    const disp = stackPush * (2 * u);
+    const err = Math.abs(disp - targetDist2D);
+
+    if (err < minErr) {
+      minErr = err;
+      bestT = mid;
+    }
+
+    if (disp < targetDist2D) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  // 2. Explore local window around bestT for (t1, t2)
+  const windowRadius = 25;
+  const tMin = Math.max(1, bestT - windowRadius);
+  const tMax = Math.min(maxCollision, bestT + windowRadius);
   const candidates = [];
 
-  // Analytical search capping flight time to actual travel duration
-  for (let t1 = 1; t1 <= collisionLimit; t1++) {
-    for (let t2 = t1; t2 <= collisionLimit; t2++) {
-      const minFlight = Math.max(t1, t2);
-      // Realistic travel time limit until drag stops forward velocity (~40t post collision)
-      const maxEffectiveFlight = Math.min(maxTicks, minFlight + 45);
+  for (let t1 = tMin; t1 <= tMax; t1++) {
+    for (let t2 = t1; t2 <= tMax; t2++) {
+      const maxCol = Math.max(t1, t2);
+      const totalTicks = maxCol + 35;
 
-      for (let tTotal = minFlight; tTotal <= maxEffectiveFlight; tTotal++) {
-        const u1 = calcUnitDisplacement(t1, tTotal);
-        const u2 = calcUnitDisplacement(t2, tTotal);
-        const calcDisp = stackPush * (u1 + u2);
-        const errHoriz = Math.abs(calcDisp - targetDist2D);
+      const u1 = calcUnitDisplacement(t1, totalTicks);
+      const u2 = calcUnitDisplacement(t2, totalTicks);
+      const calcDisp = stackPush * (u1 + u2);
+      const errHoriz = Math.abs(calcDisp - targetDist2D);
 
-        const yDrop = calcVerticalDrop(tTotal);
-        const calcY = origin.y + yDrop;
-        const errY = Math.abs(calcY - target.y);
+      const yDrop = calcVerticalDrop(totalTicks);
+      const calcY = origin.y + yDrop;
+      const errY = Math.abs(calcY - target.y);
 
-        const err3D = Math.sqrt(errHoriz * errHoriz + errY * errY);
+      const err3D = Math.sqrt(errHoriz * errHoriz + errY * errY);
 
-        candidates.push({ t1, t2, tTotal, err: err3D, errHoriz });
-      }
+      candidates.push({ t1, t2, tTotal: totalTicks, err: err3D });
     }
   }
 
