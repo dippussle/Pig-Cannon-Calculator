@@ -198,12 +198,14 @@ function runSolver() {
   const collisionLimit = Math.min(maxCollision, maxTicks);
   const candidates = [];
 
-  // Analytical search factoring 3D landing error (X, Y, Z)
+  // Analytical search capping flight time to actual travel duration
   for (let t1 = 1; t1 <= collisionLimit; t1++) {
     for (let t2 = t1; t2 <= collisionLimit; t2++) {
       const minFlight = Math.max(t1, t2);
+      // Realistic travel time limit until drag stops forward velocity (~40t post collision)
+      const maxEffectiveFlight = Math.min(maxTicks, minFlight + 45);
 
-      for (let tTotal = minFlight; tTotal <= maxTicks; tTotal++) {
+      for (let tTotal = minFlight; tTotal <= maxEffectiveFlight; tTotal++) {
         const u1 = calcUnitDisplacement(t1, tTotal);
         const u2 = calcUnitDisplacement(t2, tTotal);
         const calcDisp = stackPush * (u1 + u2);
@@ -213,7 +215,6 @@ function runSolver() {
         const calcY = origin.y + yDrop;
         const errY = Math.abs(calcY - target.y);
 
-        // Combined 3D distance error
         const err3D = Math.sqrt(errHoriz * errHoriz + errY * errY);
 
         candidates.push({ t1, t2, tTotal, err: err3D, errHoriz });
@@ -417,7 +418,7 @@ function drawTrajectory(trajectory) {
     ctx.lineTo(px, h);
   }
   for (let gy = 0; gy <= 3; gy++) {
-    const py = padding + (gy / 3) * (h - 2 * margin);
+    const py = padding + (gy / 3) * (h - 2 * padding);
     ctx.moveTo(0, py);
     ctx.lineTo(w, py);
   }
